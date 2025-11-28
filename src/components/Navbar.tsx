@@ -8,7 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   LayoutDashboard, 
   History, 
-  BookmarkPlus, 
+  BookmarkPlus,
+  Compass, 
   LogOut,
   Shield,
   Sun,
@@ -49,6 +50,7 @@ export const Navbar = ({ user }: NavbarProps) => {
 
   const navItems = [
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/explore", icon: Compass, label: "Explore" },
     { to: "/history", icon: History, label: "History" },
     { to: "/saved", icon: BookmarkPlus, label: "Saved" },
   ];

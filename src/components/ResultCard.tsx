@@ -14,10 +14,19 @@ import {
   ChevronDown, 
   ChevronUp,
   ExternalLink,
-  Trash2
+  Trash2,
+  ChevronRight,
+  Globe,
+  Lock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ResultCardProps {
   onDelete?: () => void;
@@ -30,6 +39,7 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUseful, setIsUseful] = useState(false);
   const [isSaved, setIsSaved] = useState(!!savedResultId);
+  const [isPublic, setIsPublic] = useState(result.is_public || false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -41,9 +51,11 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
     });
   };
 
-  const handleSave = async () => {
-    if (isSaving) return;
+  const toggleSave = async (e?: React.MouseEvent, makePublic?: boolean) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     
+    if (isSaving) return;
     setIsSaving(true);
     
     try {
@@ -55,63 +67,113 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
           description: "Please sign in to save results.",
           variant: "destructive",
         });
-        setIsSaving(false);
         return;
       }
 
-      if (isSaved && savedResultId) {
-        // Unsave: update is_saved to false
-        const { error } = await supabase
+      // Handle the case where we're toggling save status
+      if (!isSaved) {
+        // Save new result
+        const resultData = {
+          user_id: user.id,
+          claim: result.claim,
+          verdict: result.verdict,
+          confidence: result.confidence,
+          explanation: result.explanation,
+          sources: result.sources,
+          is_saved: true,
+          is_public: makePublic || false,
+        };
+
+        const { data, error } = await supabase
           .from("verification_results")
-          .update({ is_saved: false })
-          .eq("id", savedResultId);
+          .insert(resultData)
+          .select()
+          .single();
 
         if (error) throw error;
 
-        setIsSaved(false);
+        // Update local state
+        setIsSaved(true);
+        setIsPublic(makePublic || false);
+        
         toast({
-          title: "Removed from saved",
-          description: "This result is no longer saved.",
+          title: makePublic ? "Result saved and shared" : "Result saved",
+          description: makePublic 
+            ? "This claim is now public and visible to others in the Explore section."
+            : "You can find this in your Saved Results.",
         });
+        
+        // Call the onSaveToggle callback with the new saved result ID
         onSaveToggle?.();
       } else {
-        // Save: either update existing or create new
-        if (savedResultId) {
-          const { error } = await supabase
-            .from("verification_results")
-            .update({ is_saved: true })
-            .eq("id", savedResultId);
+        // Handle existing saved result
+        const updates: any = { is_saved: true };
+        
+        // If makePublic is provided, update the public status
+        if (makePublic !== undefined) {
+          updates.is_public = makePublic;
+        }
+        
+        if (!savedResultId) {
+          throw new Error("Saved result ID is missing");
+        }
+        
+        // First, check if the result exists and get its current state
+        const { data: existingResult, error: fetchError } = await supabase
+          .from("verification_results")
+          .select("*")
+          .eq("id", savedResultId)
+          .single();
 
-          if (error) throw error;
-        } else {
-          // Create new saved result
-          const { error } = await supabase
-            .from("verification_results")
-            .insert({
-              user_id: user.id,
-              claim: result.claim,
-              verdict: result.verdict,
-              confidence: result.confidence,
-              explanation: result.explanation,
-              sources: result.sources,
-              is_saved: true,
-            });
-
-          if (error) throw error;
+        if (fetchError) throw fetchError;
+        if (!existingResult) {
+          throw new Error("Could not find the saved result");
         }
 
-        setIsSaved(true);
-        toast({
-          title: "Result saved",
-          description: "You can find this in your Saved Results.",
-        });
+        // Update the result
+        const { error: updateError } = await supabase
+          .from("verification_results")
+          .update(updates)
+          .eq("id", savedResultId);
+
+        if (updateError) throw updateError;
+
+        // Update local state
+        if (makePublic !== undefined) {
+          setIsPublic(makePublic);
+          
+          // Show toast with the new status
+          toast({
+            title: makePublic ? "Made public" : "Made private",
+            description: makePublic 
+              ? "This claim is now visible to others in the Explore section."
+              : "This claim is now private and only visible to you.",
+          });
+        } else {
+          // If just toggling save status (not changing public/private)
+          setIsSaved(false);
+          toast({
+            title: "Removed from saved",
+            description: "This claim has been removed from your saved results.",
+          });
+        }
+        
         onSaveToggle?.();
       }
     } catch (error: any) {
       console.error("Save error:", error);
+      
+      // More specific error handling
+      let errorMessage = error.message || "An error occurred while saving.";
+      if (error.code === '42P01') { // Undefined table error
+        errorMessage = "Database error: Table not found. Please contact support.";
+      } else if (error.code === '42703') { // Undefined column error
+        errorMessage = "Database error: Column not found. Please refresh the page and try again.";
+      }
+      
       toast({
         title: "Failed to save",
-        description: error.message || "An error occurred.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -245,28 +307,81 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
               onClick={handleUseful}
               className={isUseful ? "bg-truth-green/10 text-truth-green border-truth-green/30" : ""}
             >
-              <ThumbsUp className="w-4 h-4 mr-2" />
-              {isUseful ? "Useful" : "Mark as Useful"}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving}
-              className={isSaved ? "bg-cyber-blue/10 text-cyber-blue border-cyber-blue/30" : ""}
-            >
-              {isSaved ? (
-                <>
-                  <Bookmark className="w-4 h-4 mr-2 fill-current" />
-                  Saved
-                </>
+              {isUseful ? (
+                <ThumbsUp className="w-4 h-4 mr-2 fill-current" />
               ) : (
-                <>
-                  <BookmarkPlus className="w-4 h-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save Result"}
-                </>
+                <ThumbsUp className="w-4 h-4 mr-2" />
               )}
+              {isUseful ? "Useful" : "Useful?"}
+            </Button>
+            
+            <div className="flex gap-2">
+              {isSaved ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleSave(e, !isPublic);
+                  }}
+                  disabled={isSaving}
+                  className={`flex items-center gap-2 ${isPublic ? 'bg-cyber-blue/10 text-cyber-blue border-cyber-blue/30' : 'bg-muted/50'}`}
+                >
+                  {isPublic ? (
+                    <Globe className="w-4 h-4" />
+                  ) : (
+                    <Lock className="w-4 h-4" />
+                  )}
+                  <span>{isPublic ? 'Public' : 'Private'}</span>
+                </Button>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isSaving}
+                      className="flex items-center gap-2"
+                    >
+                      <BookmarkPlus className="w-4 h-4" />
+                      <span>Save</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSave(e, false);
+                      }}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Save as Private</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSave(e, true);
+                      }}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Globe className="w-4 h-4" />
+                      <div>
+                        <div>Save & Share Publicly</div>
+                        <div className="text-xs text-muted-foreground">Visible in Explore</div>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+
+            <Button variant="outline" size="sm" onClick={handleReVerify}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Re-Verify
             </Button>
 
             <Button variant="outline" size="sm" onClick={handleShare}>
@@ -274,10 +389,6 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
               Share
             </Button>
 
-            <Button variant="outline" size="sm" onClick={handleReVerify}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Re-Verify
-            </Button>
             {onDelete && (
               <Button
                 variant="ghost"

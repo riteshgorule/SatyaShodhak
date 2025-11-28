@@ -23,6 +23,12 @@ export interface VerificationResult {
   }>;
   claim: string;
   timestamp: Date;
+  is_public?: boolean;
+  upvotes?: number;
+  downvotes?: number;
+  user_vote?: number | null;
+  comments_count?: number;
+  user_id?: string;
 }
 
 const Dashboard = () => {
