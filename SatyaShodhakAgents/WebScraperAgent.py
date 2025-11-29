@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Optional, Any
 
+import os
 import requests
 from bs4 import BeautifulSoup
 
@@ -24,12 +25,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EvidenceAgent")
 
 # ---------------------------
-# API KEYS
+# API KEYS (from environment)
 # ---------------------------
-GOOGLE_CSE_KEY = "AIzaSyAZ-37qbn_RMCrYla74ixrFUhH9UADnnYU"        
-GOOGLE_CSE_CX = "76486182c1359498a"         
-GOOGLE_FACTCHECK_KEY = "AIzaSyD5nU9XTAakVvwxw6NqEnyVoVVfWwceYnA"  
-GUARDIAN_KEY = "90e95441-4804-42f2-b57e-c18ef8eae6de"          
+GOOGLE_CSE_KEY = os.getenv("GOOGLE_CSE_KEY", "")
+GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
+GOOGLE_FACTCHECK_KEY = os.getenv("GOOGLE_FACTCHECK_KEY", "")
+GUARDIAN_KEY = os.getenv("GUARDIAN_KEY", "")
 
 # --------------------------------------------------------------------------------------
 # Data Classes

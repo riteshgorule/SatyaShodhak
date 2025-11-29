@@ -2,12 +2,17 @@ import json
 import argparse
 import uuid
 import re
+import os
 from google.generativeai import GenerativeModel, configure
 
 # -------------------------
-# Configure Gemini
+# Configure Gemini (from environment)
 # -------------------------
-configure(api_key="AIzaSyC45O829QFpbjijW6712dhPXwrT9KIWd1E")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+
+configure(api_key=GEMINI_API_KEY)
 model = GenerativeModel("gemini-2.5-flash")
 
 # -------------------------
