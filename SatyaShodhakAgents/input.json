@@ -1,0 +1,14 @@
+{
+  "claims": [
+    {
+      "id": "c00135c7f",
+      "normalized_claim": "Pakistan downed 5 indian jets?",
+      "entities": [
+        { "text": "Pakistan", "label": "GPE" },
+        { "text": "indian", "label": "NORP" },
+        { "text": "jets", "label": "NORP" }
+      ],
+      "claim_category": "geopolitical"
+    }
+  ]
+}
