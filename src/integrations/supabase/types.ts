@@ -48,11 +48,11 @@ export type Database = {
           created_at: string | null
           explanation: string
           id: string
-          is_saved: boolean | null
-          is_public: boolean | null
+          is_public: boolean
+          is_saved: boolean
           notes: string | null
           sources: Json
-          tags: string[] | null
+          tags: string[]
           updated_at: string | null
           user_id: string
           verdict: string
@@ -88,6 +88,48 @@ export type Database = {
           verdict?: string
         }
         Relationships: []
+      },
+      claim_votes: {
+        Row: {
+          id: string
+          claim_id: string
+          user_id: string
+          vote: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          claim_id: string
+          user_id: string
+          vote: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          claim_id?: string
+          user_id?: string
+          vote?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_votes_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "verification_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {

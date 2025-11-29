@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VerificationResult } from "@/pages/Dashboard";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { ConfidenceBar } from "@/components/ConfidenceBar";
@@ -17,7 +17,8 @@ import {
   Trash2,
   ChevronRight,
   Globe,
-  Lock
+  Lock,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,9 +40,16 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUseful, setIsUseful] = useState(false);
   const [isSaved, setIsSaved] = useState(!!savedResultId);
-  const [isPublic, setIsPublic] = useState(result.is_public || false);
+  const [isPublic, setIsPublic] = useState<boolean>(result.is_public || false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  
+  // Update local state when the result prop changes
+  useEffect(() => {
+    if (result.is_public !== undefined) {
+      setIsPublic(result.is_public);
+    }
+  }, [result.is_public]);
 
   const handleUseful = () => {
     setIsUseful(!isUseful);
@@ -70,8 +78,15 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
         return;
       }
 
-      // Handle the case where we're toggling save status
-      if (!isSaved) {
+      const resultId = savedResultId || result.id;
+      const isNew = !resultId;
+      
+      // Always update the local state immediately for better UX
+      if (makePublic !== undefined) {
+        setIsPublic(makePublic);
+      }
+
+      if (isNew) {
         // Save new result
         const resultData = {
           user_id: user.id,
@@ -82,6 +97,8 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
           sources: result.sources,
           is_saved: true,
           is_public: makePublic || false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
 
         const { data, error } = await supabase
@@ -103,40 +120,34 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
             : "You can find this in your Saved Results.",
         });
         
+        // Update the result with the new ID
+        result.id = data.id;
+        
         // Call the onSaveToggle callback with the new saved result ID
         onSaveToggle?.();
       } else {
-        // Handle existing saved result
-        const updates: any = { is_saved: true };
-        
-        // If makePublic is provided, update the public status
+        // For existing result, update the public status
         if (makePublic !== undefined) {
-          updates.is_public = makePublic;
-        }
-        
-        if (!savedResultId) {
-          throw new Error("Saved result ID is missing");
-        }
-        
-        // First, check if the result exists and get its current state
-        const { data: existingResult, error: fetchError } = await supabase
-          .from("verification_results")
-          .select("*")
-          .eq("id", savedResultId)
-          .single();
+          const { error: updateError } = await supabase
+            .from("verification_results")
+            .update({ 
+              is_public: makePublic,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", resultId);
 
-        if (fetchError) throw fetchError;
-        if (!existingResult) {
-          throw new Error("Could not find the saved result");
+          if (updateError) throw updateError;
+          
+          // Update the local state to reflect the change
+          result.is_public = makePublic;
+          
+          toast({
+            title: makePublic ? "Made public" : "Made private",
+            description: makePublic 
+              ? "This claim is now visible to others in the Explore section."
+              : "This claim is now private and only visible to you.",
+          });
         }
-
-        // Update the result
-        const { error: updateError } = await supabase
-          .from("verification_results")
-          .update(updates)
-          .eq("id", savedResultId);
-
-        if (updateError) throw updateError;
 
         // Update local state
         if (makePublic !== undefined) {
@@ -317,24 +328,46 @@ export const ResultCard = ({ result, savedResultId, onSaveToggle, onDelete }: Re
             
             <div className="flex gap-2">
               {isSaved ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    toggleSave(e, !isPublic);
-                  }}
-                  disabled={isSaving}
-                  className={`flex items-center gap-2 ${isPublic ? 'bg-cyber-blue/10 text-cyber-blue border-cyber-blue/30' : 'bg-muted/50'}`}
-                >
-                  {isPublic ? (
-                    <Globe className="w-4 h-4" />
-                  ) : (
-                    <Lock className="w-4 h-4" />
-                  )}
-                  <span>{isPublic ? 'Public' : 'Private'}</span>
-                </Button>
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (isSaving) return;
+                      
+                      // Optimistically update the UI
+                      const newPublicState = !isPublic;
+                      setIsPublic(newPublicState);
+                      
+                      try {
+                        await toggleSave(e, newPublicState);
+                      } catch (error) {
+                        // Revert on error
+                        setIsPublic(!newPublicState);
+                        console.error('Failed to update visibility:', error);
+                      }
+                    }}
+                    disabled={isSaving}
+                    className={`flex items-center gap-2 transition-colors ${
+                      isPublic 
+                        ? 'bg-cyber-blue/10 text-cyber-blue border-cyber-blue/30 hover:bg-cyber-blue/20' 
+                        : 'bg-muted/50 hover:bg-muted/70'
+                    }`}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : isPublic ? (
+                      <Globe className="w-4 h-4" />
+                    ) : (
+                      <Lock className="w-4 h-4" />
+                    )}
+                    <span className="min-w-[50px] text-center">
+                      {isSaving ? 'Saving...' : isPublic ? 'Public' : 'Private'}
+                    </span>
+                  </Button>
+                </div>
               ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
