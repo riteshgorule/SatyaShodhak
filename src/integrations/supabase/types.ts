@@ -1,271 +1,255 @@
+// src/integrations/supabase/types.ts
+
 export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+    | string
+    | number
+    | boolean
+    | null
+    | { [key: string]: Json | undefined }
+    | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
-  public: {
-    Tables: {
-      profiles: {
-        Row: {
-          avatar_url: string | null
-          created_at: string | null
-          email: string
-          full_name: string | null
-          id: string
-          updated_at: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string | null
-          email: string
-          full_name?: string | null
-          id: string
-          updated_at?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string | null
-          email?: string
-          full_name?: string | null
-          id?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      verification_results: {
-        Row: {
-          claim: string
-          confidence: number
-          created_at: string | null
-          explanation: string
-          id: string
-          is_public: boolean
-          is_saved: boolean
-          notes: string | null
-          sources: Json
-          tags: string[]
-          updated_at: string | null
-          user_id: string
-          verdict: string
-        }
-        Insert: {
-          claim: string
-          confidence: number
-          created_at?: string | null
-          explanation: string
-          id?: string
-          is_saved?: boolean | null
-          is_public?: boolean | null
-          notes?: string | null
-          sources?: Json
-          tags?: string[] | null
-          updated_at?: string | null
-          user_id: string
-          verdict: string
-        }
-        Update: {
-          claim?: string
-          confidence?: number
-          created_at?: string | null
-          explanation?: string
-          id?: string
-          is_saved?: boolean | null
-          is_public?: boolean | null
-          notes?: string | null
-          sources?: Json
-          tags?: string[] | null
-          updated_at?: string | null
-          user_id?: string
-          verdict?: string
-        }
-        Relationships: []
-      },
-      claim_votes: {
-        Row: {
-          id: string
-          claim_id: string
-          user_id: string
-          vote: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          claim_id: string
-          user_id: string
-          vote: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          claim_id?: string
-          user_id?: string
-          vote?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "claim_votes_claim_id_fkey"
-            columns: ["claim_id"]
-            isOneToOne: false
-            referencedRelation: "verification_results"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "claim_votes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
+    __InternalSupabase: {
+        PostgrestVersion: "13.0.5"
     }
-    Views: {
-      [_ in never]: never
-    }
+
+    // Define the RPC functions
     Functions: {
-      [_ in never]: never
+        handle_verification_vote: {
+            Args: {
+                p_verification_id: string
+                p_user_id: string
+                p_vote: number
+            }
+            Returns: void
+        }
+        handle_comment_vote: {
+            Args: {
+                p_comment_id: string
+                p_user_id: string
+                p_vote: number
+            }
+            Returns: void
+        }
+        get_comments_with_votes: {
+            Args: {
+                p_claim_id: string
+            }
+            Returns: Array<{
+                id: string
+                content: string
+                user_id: string
+                user_name: string
+                user_avatar: string | null
+                created_at: string
+                upvotes: number
+                downvotes: number
+                user_vote: number | null
+            }>
+        }
+        delete_comment: {
+            Args: {
+                p_comment_id: string
+            }
+            Returns: void
+        }
     }
-    Enums: {
-      [_ in never]: never
+
+    public: {
+        Tables: {
+            profiles: {
+                Row: {
+                    id: string
+                    email: string
+                    full_name: string | null
+                    avatar_url: string | null
+                    created_at: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    id: string
+                    email: string
+                    full_name?: string | null
+                    avatar_url?: string | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    email?: string
+                    full_name?: string | null
+                    avatar_url?: string | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: []
+            }
+            verification_results: {
+                Row: {
+                    id: string
+                    claim: string
+                    verdict: string
+                    confidence: number
+                    explanation: string
+                    sources: Json
+                    created_at: string | null
+                    updated_at: string | null
+                    user_id: string
+                    is_public: boolean
+                    is_saved: boolean
+                    notes: string | null
+                    tags: string[]
+                }
+                Insert: {
+                    id?: string
+                    claim: string
+                    verdict: string
+                    confidence: number
+                    explanation: string
+                    sources: Json
+                    created_at?: string | null
+                    updated_at?: string | null
+                    user_id: string
+                    is_public?: boolean
+                    is_saved?: boolean
+                    notes?: string | null
+                    tags?: string[]
+                }
+                Update: {
+                    id?: string
+                    claim?: string
+                    verdict?: string
+                    confidence?: number
+                    explanation?: string
+                    sources?: Json
+                    created_at?: string | null
+                    updated_at?: string | null
+                    user_id?: string
+                    is_public?: boolean
+                    is_saved?: boolean
+                    notes?: string | null
+                    tags?: string[]
+                }
+                Relationships: []
+            }
+            comments: {
+                Row: {
+                    id: string
+                    claim_id: string
+                    user_id: string
+                    content: string
+                    created_at: string
+                    updated_at: string | null
+                    user_name: string
+                    user_avatar: string | null
+                }
+                Insert: {
+                    id?: string
+                    claim_id: string
+                    user_id: string
+                    content: string
+                    created_at?: string
+                    updated_at?: string | null
+                    user_name: string
+                    user_avatar?: string | null
+                }
+                Update: {
+                    id?: string
+                    claim_id?: string
+                    user_id?: string
+                    content?: string
+                    created_at?: string
+                    updated_at?: string | null
+                    user_name?: string
+                    user_avatar?: string | null
+                }
+                Relationships: Array<{
+                    foreignKeyName: "comments_claim_id_fkey" | "comments_user_id_fkey"
+                    columns: [string, string]
+                    referencedRelation: "verification_results" | "profiles"
+                    referencedColumns: ["id"]
+                }>
+            }
+            comment_votes: {
+                Row: {
+                    id: string
+                    comment_id: string
+                    user_id: string
+                    vote: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    comment_id: string
+                    user_id: string
+                    vote: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    comment_id?: string
+                    user_id?: string
+                    vote?: number
+                    created_at?: string
+                }
+                Relationships: Array<{
+                    foreignKeyName: "comment_votes_comment_id_fkey" | "comment_votes_user_id_fkey"
+                    columns: [string, string]
+                    referencedRelation: "comments" | "profiles"
+                    referencedColumns: ["id"]
+                }>
+            }
+            verification_votes: {
+                Row: {
+                    id: string
+                    verification_id: string
+                    user_id: string
+                    vote: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    verification_id: string
+                    user_id: string
+                    vote: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    verification_id?: string
+                    user_id?: string
+                    vote?: number
+                    created_at?: string
+                }
+                Relationships: Array<{
+                    foreignKeyName: "verification_votes_verification_id_fkey" | "verification_votes_user_id_fkey"
+                    columns: [string, string]
+                    referencedRelation: "verification_results" | "profiles"
+                    referencedColumns: ["id"]
+                }>
+            }
+        }
+        Views: {
+            [_ in never]: never
+        }
+        Functions: {
+            [_ in never]: never
+        }
+        Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
+            [_ in never]: never
+        }
     }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
+export type InsertTables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
+export type UpdateTables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
 
 export const Constants = {
-  public: {
-    Enums: {},
-  },
+    public: {
+        Enums: {},
+    },
 } as const

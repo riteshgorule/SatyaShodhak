@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,26 +10,7 @@ import { AnimatedScanner } from "@/components/AnimatedScanner";
 import { ResultCard } from "@/components/ResultCard";
 import { Search, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-export interface VerificationResult {
-  id: string;
-  verdict: "TRUE" | "FALSE" | "MISLEADING" | "PARTIALLY_TRUE" | "INCONCLUSIVE";
-  confidence: number;
-  explanation: string;
-  sources: Array<{
-    title: string;
-    snippet: string;
-    url: string;
-  }>;
-  claim: string;
-  timestamp: Date;
-  is_public?: boolean;
-  upvotes?: number;
-  downvotes?: number;
-  user_vote?: number | null;
-  comments_count?: number;
-  user_id?: string;
-}
+import type { VerificationResult } from "@/types";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -58,6 +39,71 @@ const Dashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleDeleteResult = (id: string) => {
+    setResults(prev => prev.filter(result => result.id !== id));
+  };
+
+  const handleReVerify = async (resultId: string): Promise<VerificationResult | void> => {
+    const result = results.find(r => r.id === resultId);
+    if (!result) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-claim", {
+        body: { 
+          claim: result.claim,
+          is_reverification: true,
+          original_result_id: resultId
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      if (data?.result) {
+        const updatedResult: VerificationResult = {
+          ...result,
+          id: resultId, // Ensure we keep the same ID
+          verdict: data.result.verdict,
+          confidence: data.result.confidence,
+          explanation: data.result.explanation,
+          sources: data.result.sources,
+          timestamp: new Date(),
+          updated_at: new Date().toISOString(),
+        };
+
+        setResults(prev => 
+          prev.map(r => r.id === resultId ? updatedResult : r)
+        );
+
+        toast({
+          title: "Re-verification complete",
+          description: "The claim has been re-verified with the latest information.",
+        });
+
+        return updatedResult;
+      }
+    } catch (error: any) {
+      console.error("Re-verification error:", error);
+      toast({
+        title: "Re-verification failed",
+        description: error.message || "An error occurred while re-verifying the claim.",
+        variant: "destructive",
+      });
+      throw error; // Re-throw to allow error handling in the ResultCard component
+    }
+  };
+
+  const handleCommentCountChange = useCallback((resultId: string, count: number) => {
+    setResults(prev => 
+      prev.map(r => 
+        r.id === resultId ? { ...r, comments_count: count } : r
+      )
+    );
+  }, []);
 
   const handleVerify = async () => {
     if (!claim.trim()) {
@@ -97,6 +143,7 @@ const Dashboard = () => {
           sources: data.result.sources,
           claim: data.result.claim,
           timestamp: new Date(),
+          comments_count: 0, // Initialize comment count
         };
 
         setResults((prev) => [newResult, ...prev]);
@@ -163,16 +210,12 @@ const Dashboard = () => {
                     onClick={handleVerify}
                     disabled={isVerifying || !claim.trim()}
                     size="lg"
-                    className="w-full bg-cyber-blue hover:bg-cyber-blue/90 text-primary shadow-glow transition-all duration-300 rounded-xl font-semibold text-lg py-6"
+                    className="w-full bg-cyber-blue hover:bg-cyber-blue/90 text-white shadow-glow transition-all duration-300 rounded-xl font-semibold text-lg py-6"
                   >
                     <Search className="mr-2 w-5 h-5" />
                     {isVerifying ? "Verifying..." : "Verify Claim"}
                   </Button>
                 </motion.div>
-                
-                <p className="text-xs text-center text-muted-foreground italic">
-                  🔒 Your data is never stored until you choose to save it.
-                </p>
               </div>
             </div>
           </Card>
@@ -200,15 +243,15 @@ const Dashboard = () => {
               >
                 <h2 className="text-2xl font-bold tracking-wide">Verification Results</h2>
                 <div className="space-y-4">
-                  {results.map((result, index) => (
-                    <motion.div
+                  {results.map((result) => (
+                    <ResultCard
                       key={result.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <ResultCard result={result} />
-                    </motion.div>
+                      result={result}
+                      onDelete={() => handleDeleteResult(result.id)}
+                      onReVerify={() => handleReVerify(result.id)}
+                      onSaveToggle={() => {}}
+                      onCommentCountChange={(count) => handleCommentCountChange(result.id, count)}
+                    />
                   ))}
                 </div>
               </motion.div>

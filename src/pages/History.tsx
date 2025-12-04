@@ -7,7 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { ResultCard } from "@/components/ResultCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2, List, LayoutGrid, Trash2, X } from "lucide-react";
+import { Search, Loader2, List, LayoutGrid, Trash2, X, Check, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -19,6 +19,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 const History = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -29,6 +38,10 @@ const History = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [verificationToDelete, setVerificationToDelete] = useState<string | null>(null);
+  const [reverifyDialogOpen, setReverifyDialogOpen] = useState(false);
+  const [verificationToReverify, setVerificationToReverify] = useState<any>(null);
+  const [reverificationResult, setReverificationResult] = useState<any>(null);
+  const [isReverifying, setIsReverifying] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -84,6 +97,102 @@ const History = () => {
   const handleDeleteVerification = (id: string) => {
     setVerificationToDelete(id);
     setDeleteDialogOpen(true);
+  };
+
+  const handleReverifyClick = (resultId: string) => {
+    const result = history.find(r => r.id === resultId);
+    if (!result) return;
+    
+    setVerificationToReverify(result);
+    setReverifyDialogOpen(true);
+  };
+
+  const startReverification = async () => {
+    if (!verificationToReverify) return;
+    
+    setIsReverifying(true);
+    setReverificationResult(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-claim", {
+        body: { 
+          claim: verificationToReverify.claim,
+          is_reverification: true,
+          original_result_id: verificationToReverify.id
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      setReverificationResult(data.result);
+    } catch (error: any) {
+      console.error("Re-verification error:", error);
+      toast({
+        title: "Re-verification failed",
+        description: error.message || "An error occurred while re-verifying the claim.",
+        variant: "destructive",
+      });
+      setReverifyDialogOpen(false);
+    } finally {
+      setIsReverifying(false);
+    }
+  };
+
+  const saveReverification = async (keepOriginal: boolean) => {
+    if (!verificationToReverify || !reverificationResult) return;
+    
+    try {
+      const updates = {
+        id: verificationToReverify.id,
+        updated_at: new Date().toISOString(),
+        ...(!keepOriginal && {
+          verdict: reverificationResult.verdict,
+          confidence: reverificationResult.confidence,
+          explanation: reverificationResult.explanation,
+          sources: reverificationResult.sources,
+        })
+      };
+      
+      // Update in the database using the upsert method to ensure we're updating the existing record
+      const { error } = await supabase
+        .from('verification_results')
+        .upsert(updates, { 
+          onConflict: 'id',
+          ignoreDuplicates: false
+        });
+        
+      if (error) throw error;
+
+      // Update the local state with the new data
+      const updatedResult = {
+        ...verificationToReverify,
+        ...updates
+      };
+
+      setHistory(prev => 
+        prev.map(r => r.id === verificationToReverify.id ? updatedResult : r)
+      );
+
+      toast({
+        title: keepOriginal ? "Kept original result" : "Result updated",
+        description: keepOriginal 
+          ? "The original verification result has been kept." 
+          : "The verification result has been updated with new information.",
+      });
+      
+    } catch (error: any) {
+      console.error("Error saving verification:", error);
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred while saving the verification result.",
+        variant: "destructive",
+      });
+    } finally {
+      setReverifyDialogOpen(false);
+      setVerificationToReverify(null);
+      setReverificationResult(null);
+    }
   };
 
   const confirmDelete = async () => {
@@ -211,10 +320,20 @@ const History = () => {
                         explanation: item.explanation,
                         sources: item.sources,
                         timestamp: new Date(item.created_at),
+                        is_public: item.is_public || false,
+                        upvotes: item.upvotes || 0,
+                        downvotes: item.downvotes || 0,
+                        user_vote: item.user_vote || null,
+                        comments_count: item.comments_count || 0,
+                        user_id: item.user_id
                       }}
                       savedResultId={item.id}
                       onSaveToggle={fetchHistory}
                       onDelete={() => handleDeleteVerification(item.id)}
+                      onReVerify={async () => {
+                        await handleReverifyClick(item.id);
+                        return undefined; // Return undefined to satisfy the Promise<void> return type
+                      }}
                     />
                     <button
                       onClick={() => handleDeleteVerification(item.id)}
@@ -303,6 +422,143 @@ const History = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Re-verification Dialog */}
+      <Dialog open={reverifyDialogOpen} onOpenChange={setReverifyDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Re-verify Claim</DialogTitle>
+            <DialogDescription>
+              {reverificationResult 
+                ? "Review the new verification result and choose whether to update or keep the original."
+                : "Verifying the claim with the latest information..."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {verificationToReverify && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Original Claim</h4>
+                <p className="text-sm">{verificationToReverify.claim}</p>
+                
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="outline" className="capitalize">
+                    {verificationToReverify.verdict?.toLowerCase() || 'Unknown'}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {verificationToReverify.confidence}% confidence
+                  </span>
+                </div>
+              </div>
+
+              {reverificationResult ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-blue-500" />
+                      New Verification Result
+                    </h4>
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge 
+                          variant={reverificationResult.verdict !== verificationToReverify.verdict ? 'default' : 'outline'}
+                          className={`capitalize ${
+                            reverificationResult.verdict !== verificationToReverify.verdict 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' 
+                              : ''
+                          }`}
+                        >
+                          {reverificationResult.verdict?.toLowerCase() || 'Unknown'}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {reverificationResult.confidence}% confidence
+                          {reverificationResult.confidence > verificationToReverify.confidence 
+                            ? ' (Improved)' 
+                            : reverificationResult.confidence < verificationToReverify.confidence 
+                              ? ' (Decreased)' 
+                              : ' (No change)'}
+                        </span>
+                      </div>
+                      
+                      {reverificationResult.explanation && (
+                        <div className="mt-2 text-sm">
+                          <h5 className="font-medium mb-1">Analysis:</h5>
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            {reverificationResult.explanation.split('\n').map((line: string, i: number) => (
+                              <p key={i} className="mb-2">{line}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">What would you like to do?</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <Button 
+                        variant="outline" 
+                        className="h-auto py-4 flex flex-col items-start gap-2 text-left"
+                        onClick={() => saveReverification(true)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-green-500" />
+                          <span className="font-medium">Keep Original</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground font-normal">
+                          Maintain the current verification result
+                        </span>
+                      </Button>
+                      
+                      <Button 
+                        variant="default" 
+                        className="h-auto py-4 flex flex-col items-start gap-2 text-left"
+                        onClick={() => saveReverification(false)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4" />
+                          <span className="font-medium">Update to New Result</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground/80 font-normal">
+                          Save the new verification result
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+                  <p className="text-sm text-muted-foreground">Verifying claim with latest information...</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="sm:justify-between">
+            <Button 
+              variant="outline" 
+              onClick={() => setReverifyDialogOpen(false)}
+              disabled={isReverifying}
+            >
+              Cancel
+            </Button>
+            {!reverificationResult && (
+              <Button 
+                onClick={startReverification}
+                disabled={isReverifying}
+              >
+                {isReverifying ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : 'Start Verification'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

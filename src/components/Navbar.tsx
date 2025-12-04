@@ -52,7 +52,6 @@ export const Navbar = ({ user }: NavbarProps) => {
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/explore", icon: Compass, label: "Explore" },
     { to: "/history", icon: History, label: "History" },
-    { to: "/saved", icon: BookmarkPlus, label: "Saved" },
   ];
 
   return (
@@ -92,23 +91,34 @@ export const Navbar = ({ user }: NavbarProps) => {
         <Button
           variant="ghost"
           size="icon"
-          className="mr-2 rounded-full"
+          className="mr-2 rounded-full group relative"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {theme === 'dark' ? (
-            <Sun className="h-5 w-5" />
+            <>
+              <Sun className="h-5 w-5" />
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Switch to light mode
+              </span>
+            </>
           ) : (
-            <Moon className="h-5 w-5" />
+            <>
+              <Moon className="h-5 w-5" />
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Switch to dark mode
+              </span>
+            </>
           )}
         </Button>
 
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full group">
               <Avatar className="h-10 w-10 border-2 border-cyber-blue/30">
                 <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ""} />
-                <AvatarFallback className="bg-cyber-blue/20 text-cyber-blue font-bold">
+                <AvatarFallback className="bg-cyber-blue/20 text-cyber-blue font-bold group-hover:bg-cyber-blue/10 group-hover:text-black transition-colors">
                   {user.email?.[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>

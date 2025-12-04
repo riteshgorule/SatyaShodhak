@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { VerificationResult } from "./Dashboard";
+import type { VerificationResult } from "@/types";
 
 export const Explore = () => {
   const [user, setUser] = useState<any>(null);
@@ -125,6 +125,7 @@ export const Explore = () => {
                     <ResultCard 
                       key={result.id} 
                       result={result} 
+                      showReverify={false}
                       onDelete={user?.id === result.user_id ? async () => {
                         // Refresh the claims after deletion
                         await fetchPublicClaims(searchQuery);
